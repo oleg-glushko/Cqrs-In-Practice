@@ -1,0 +1,61 @@
+﻿@inject HttpClient Http
+@inject IToastService toastService
+@inject IJSRuntime JS
+
+<dialog id="edit-pii-dialog">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Edit Personal Info</h5>
+            <button type="button" class="btn-close" tabindex="-1"
+                    @onclick="@(() => JS.InvokeVoidAsync("closeDialog", "edit-pii-dialog"))" />
+        </div>
+
+        <div class="modal-body my-3">
+            <div class="mb-2">
+                <label for="name" class="form-label">Name</label>
+                <input type="text" class="input-control" @bind="Name" />
+            </div>
+            <div>
+                <label for="email" class="form-label">Email</label>
+                <input type="text" class="input-control" @bind="Email" />
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <form method="dialog">
+                <button type="button" class="btn btn-outline-success" @onclick="Save">OK</button>
+                <button class="btn btn-outline-secondary">Cancel</button>
+            </form>
+        </div>
+    </div>
+</dialog>
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+    [Parameter]
+    public string Name { get; set; } = string.Empty;
+    [Parameter]
+    public string Email { get; set; } = string.Empty;
+    [Parameter]
+    public EventCallback Notifier { get; set; }
+
+    private async Task Save()
+    {
+        var personalInfoDto = new PersonalInfoDto()
+            {
+                Id = Id,
+                Name = Name,
+                Email = Email
+            };
+        var result = await Http.EditPersonalInfo(personalInfoDto);
+        if (result.IsFailure)
+        {
+            toastService.ShowError(result.Error);
+            return;
+        }
+
+        await JS.InvokeVoidAsync("closeDialog", "edit-pii-dialog");
+        await Notifier.InvokeAsync();
+    }
+}

@@ -1,0 +1,112 @@
+﻿@page "/"
+@rendermode InteractiveAuto
+
+@using Microsoft.AspNetCore.Components.QuickGrid
+
+@inject HttpClient Http
+@inject NavigationManager NavManager
+
+<PageTitle>CQRS in Practice</PageTitle>
+
+<div class="row justify-content-center gap-1 mb-5">
+    <div class="col-sm-auto">
+        <div class="input-group">
+            <label for="selectedCourse" class="input-group-text">Enrolled in:</label>
+            <select @bind="SelectedCourse" id="selectedCourse" class="form-select">
+                @foreach (var course in DbStaticData.Courses)
+                {
+                    <option value="@course">@course</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="col-sm-auto">
+        <div class="input-group">
+            <label class="input-group-text" for="SelectedNumberOfCourses">Number of courses:</label>
+            <select @bind="SelectedNumberOfCourses" class="form-select" id="SelectedNumberOfCourses">
+                @foreach (var number in DbStaticData.NumberOfCourses)
+                {
+                    <option value="@number">@number</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="col-sm-auto">
+        <button class="btn btn-outline-secondary" type="button" @onclick="GetStudents">Search</button>
+    </div>
+</div>
+
+<div class="d-flex justify-content-end">
+    <button class="btn btn-outline-success mb-1 pull-right" type="button"
+            @onclick="@(() => NavManager.NavigateTo("/Student"))">Create Student</button>
+</div>
+
+<div class="row">
+    <QuickGrid @ref="StudentsGrid" Items="@Students" Class="table table-striped">
+        <PropertyColumn Property="@(p => p.Name)" Align="Align.Start"  />
+        <PropertyColumn Property="@(p => p.Email)" />
+        <TemplateColumn Title="First Course">
+            <div class="d-flex flex-column">
+                <div class="my-1">@context.Course1</div>
+                @if (!string.IsNullOrEmpty(context.Course1Grade))
+                {
+                    <div class="my-1">Grade: @context.Course1Grade</div>
+                }
+                @if (context.Course1Credits != null)
+                {
+                    <div class="my-1">Credits: @context.Course1Credits</div>
+                }
+            </div>
+        </TemplateColumn>
+        <TemplateColumn Title="Second Course">
+            <div class="d-flex flex-column">
+                <div class="my-1">@context.Course2</div>
+                @if (!string.IsNullOrEmpty(context.Course2Grade))
+                {
+                    <div class="my-1">Grade: @context.Course2Grade</div>
+                }
+                @if (context.Course2Credits != null)
+                {
+                    <div class="my-1">Credits: @context.Course2Credits</div>
+                }
+            </div>
+        </TemplateColumn>
+        <TemplateColumn>
+            <button class="btn btn-outline-primary my-1" @onclick="@(() => NavManager.NavigateTo($"/Student/{context.Id}"))">Edit</button>
+            <button class="btn btn-outline-danger my-1" @onclick="@(() => DeleteStudent(context.Id))">Delete</button>
+        </TemplateColumn>
+    </QuickGrid>
+</div>
+
+@code {
+    public string SelectedCourse { get; set; } = "";
+    public string SelectedNumberOfCourses { get; set; } = "";
+
+    public IQueryable<StudentDto> Students { get; private set; } = new List<StudentDto>().AsQueryable();
+    public QuickGrid<StudentDto> StudentsGrid { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetStudents();
+    }
+
+    private async Task GetStudents()
+    {
+        var requestUrl = $"api/students?enrolled={SelectedCourse}";
+        if (SelectedNumberOfCourses != "")
+            requestUrl += $"&number={SelectedNumberOfCourses}";
+
+        var response = await Http.GetAllStudents(SelectedCourse, SelectedNumberOfCourses);
+
+        // Http.GetFromJsonAsync<Envelope<List<StudentDto>>>(requestUrl);
+        Students = response.AsQueryable();
+    }
+
+    private async Task DeleteStudent(long id)
+    {
+        await Http.DeleteAsync($"api/students/{id}");
+        await GetStudents();
+    }
+}

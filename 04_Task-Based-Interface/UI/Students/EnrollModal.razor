@@ -1,0 +1,76 @@
+﻿@inject HttpClient Http
+@inject IToastService toastService
+@inject IJSRuntime JS
+
+<dialog id="enroll-dialog" @onclose="Close">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Enroll Course</h5>
+            <button type="button" class="btn-close" tabindex="-1"
+                    @onclick="@(() => JS.InvokeVoidAsync("closeDialog", "enroll-dialog"))" />
+        </div>
+
+        <div class="modal-body my-3">
+            <div class="mb-2">
+                <label for="course" class="form-label">Course</label>
+                <select id="course" class="form-select" @bind="Course">
+                    @foreach (var course in DbStaticData.Courses)
+                    {
+                        <option value="@course">@course</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label for="firstGrade" class="form-label">Grade</label>
+                <select id="firstGrade" class="form-select" @bind="Grade">
+                    @foreach (var grade in DbStaticData.Grades)
+                    {
+                        <option value="@grade">@grade</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <form method="dialog">
+                <button type="button" class="btn btn-outline-success" @onclick="Save">OK</button>
+                <button class="btn btn-outline-secondary">Cancel</button>
+            </form>
+        </div>
+    </div>
+</dialog>
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+    [Parameter]
+    public EventCallback Notifier { get; set; }
+
+    public string Course { get; set; } = string.Empty;
+    public string Grade { get; set; } = string.Empty;
+
+    private async Task Save()
+    {
+        var enrollmentDto = new EnrollmentDto()
+        {
+            Id = Id,
+            Course = Course,
+            Grade = Grade
+        };
+        var result = await Http.Enroll(enrollmentDto);
+        if (result.IsFailure)
+        {
+            toastService.ShowError(result.Error);
+            return;
+        }
+
+        await JS.InvokeVoidAsync("closeDialog", "enroll-dialog");
+        await Notifier.InvokeAsync();
+    }
+
+    private void Close()
+    {
+        Course = string.Empty;
+        Grade = string.Empty;
+    }
+}

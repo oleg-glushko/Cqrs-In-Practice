@@ -1,0 +1,62 @@
+﻿@inject HttpClient Http
+@inject IToastService toastService
+@inject IJSRuntime JS
+
+<dialog id="disenroll-dialog" @onclose="Close">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Disenroll</h5>
+            <button type="button" class="btn-close" tabindex="-1"
+                    @onclick="@(() => JS.InvokeVoidAsync("closeDialog", "disenroll-dialog"))" />
+        </div>
+
+        <div class="modal-body my-3">
+            <div class="mb-2">
+                <label for="comment" class="form-label">Comment</label>
+                <input id="comment" type="text" class="input-control" @bind="Comment" />
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <form method="dialog">
+                <button type="button" class="btn btn-outline-success" @onclick="Save">OK</button>
+                <button class="btn btn-outline-secondary">Cancel</button>
+            </form>
+        </div>
+    </div>
+</dialog>
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+    [Parameter]
+    public int EnrollmentNumber { get; set; }
+    [Parameter]
+    public string Comment { get; set; } = string.Empty;
+    [Parameter]
+    public EventCallback Notifier { get; set; }
+
+    private async Task Save()
+    {
+        var disenrollmentDto = new DisenrollmentDto()
+            {
+                Id = Id,
+                EnrollmentNumber = EnrollmentNumber,
+                Comment = Comment
+            };
+        var result = await Http.Disenroll(disenrollmentDto);
+        if (result.IsFailure)
+        {
+            toastService.ShowError(result.Error);
+            return;
+        }
+
+        await JS.InvokeVoidAsync("closeDialog", "disenroll-dialog");
+        await Notifier.InvokeAsync();
+    }
+
+    private void Close()
+    {
+        Comment = string.Empty;
+    }
+}

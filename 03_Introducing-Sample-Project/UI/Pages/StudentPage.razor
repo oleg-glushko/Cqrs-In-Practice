@@ -1,0 +1,133 @@
+﻿@page "/Student/{id:long?}"
+@rendermode InteractiveAuto
+
+@using CSharpFunctionalExtensions
+
+@inject HttpClient Http
+@inject NavigationManager NavManager
+@inject IToastService toastService
+
+<PageTitle>@(Id == null ? "Create" : "Edit") Student</PageTitle>
+<BlazoredToasts />
+
+@if (Id != null && StudentModel == null)
+{
+    <p>Fetching data...</p>
+} else if (StudentModel != null)
+{
+    <EditForm Model="StudentModel" class="row g-3">
+        <div class="col-md-6">
+            <label for="name" class="form-label">Name:</label>
+            <InputText id="name" class="form-control" @bind-Value="StudentModel.Name" />
+        </div>
+        <div class="col-md-6 mb-2">
+            <label for="email" class="form-label">Email:</label>
+            <InputText id="email" class="form-control" @bind-Value="StudentModel.Email" />
+        </div>
+        <div class="col-md-6 mb-2">
+            <label for="firstCourse" class="form-label">First course:</label>
+            <InputSelect id="firstCourse" class="form-select" @bind-Value="StudentModel.Course1">
+                @foreach (var course in DbStaticData.Courses)
+                {
+                    <option value="@course">@course</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-6 mb-2">
+            @if (Id != null && StudentModel.Course1 == "")
+            {
+                StudentModel.Course1Grade = "";
+                <label for="firstDisenrollment" class="form-label">Disenrollment comment:</label>
+                <InputText id="firstDisenrollment" class="form-select" @bind-Value="StudentModel.Course1DisenrollmentComment" />
+            } else
+            {
+                <label for="firstGrade" class="form-label">First course grade:</label>
+                <InputSelect id="firstGrade" class="form-select" @bind-Value="StudentModel.Course1Grade">
+                    @foreach (var grade in DbStaticData.Grades)
+                    {
+                        <option value="@grade">@grade</option>
+                    }
+                </InputSelect>
+            }
+        </div>
+        <div class="col-md-6 mb-2">
+            <label for="secondCourse" class="form-label">Second course:</label>
+            <InputSelect id="secondCourse" class="form-select" @bind-Value="StudentModel.Course2">
+                @foreach (var course in DbStaticData.Courses)
+                {
+                    <option value="@course">@course</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-6 mb-2">
+            @if (Id != null && StudentModel.Course2 == "")
+            {
+                StudentModel.Course2Grade = "";
+                <label for="secondDisenrollment" class="form-label">Disenrollment comment:</label>
+                <InputText id="secondDisenrollment" class="form-select" @bind-Value="StudentModel.Course2DisenrollmentComment" />
+            }
+            else
+            {
+                <label for="secondGrade" class="form-label">Second course grade:</label>
+                <InputSelect id="secondGrade" class="form-select" @bind-Value="StudentModel.Course2Grade">
+                    @foreach (var grade in DbStaticData.Grades)
+                    {
+                        <option value="@grade">@grade</option>
+                    }
+                </InputSelect>
+            }
+        </div>
+
+        <div class="d-flex justify-content-end gap-1">
+            <button class="btn btn-outline-success" type="button" @onclick="Save">Save</button>
+            <button class="btn btn-outline-secondary" type="button" @onclick="@(() => NavManager.NavigateTo("/"))">Cancel</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public long? Id { get; set; }
+
+    public StudentDto? StudentModel { get; set; }
+    public string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id == null)
+        {
+            StudentModel = new StudentDto();
+            return; 
+        }
+
+        var result = await Http.GetStudent(Id.Value);
+        if (result.IsFailure)
+        {
+            toastService.ShowError(result.Error);
+            return;
+        }
+
+        StudentModel = result.Value;
+    }
+
+    private async Task Save()
+    {
+        Result result;
+
+        if (Id == null)
+        {
+            result = await Http.CreateStudent(StudentModel!);
+        } else
+        {
+            result = await Http.UpdateStudent(StudentModel!);
+        }
+
+        if (result.IsFailure)
+        {
+            toastService.ShowError(result.Error);
+            return;
+        }
+
+        NavManager.NavigateTo("/");
+    }
+}

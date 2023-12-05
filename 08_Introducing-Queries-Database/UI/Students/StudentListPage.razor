@@ -1,0 +1,198 @@
+﻿@page "/"
+@rendermode InteractiveAuto
+
+@using Microsoft.AspNetCore.Components.QuickGrid
+
+@inject HttpClient Http
+@inject NavigationManager NavManager
+@inject IToastService toastService
+@inject IJSRuntime JS
+
+<PageTitle>CQRS in Practice</PageTitle>
+<BlazoredToasts />
+
+<EditPersonalInfoModal @ref="_editPersonalInfoModal" Notifier="ReloadStudents" />
+<EnrollModal @ref="_enrollModal" Notifier="ReloadStudents" />
+<TransferModal @ref="_transferModal" Notifier="ReloadStudents" />
+<DisenrollModal @ref="_disenrollModal" Notifier="ReloadStudents" />
+
+<div class="row justify-content-center gap-1 mb-5">
+    <div class="col-sm-auto">
+        <div class="input-group">
+            <label for="selectedCourse" class="input-group-text">Enrolled in:</label>
+            <select @bind="SelectedCourse" id="selectedCourse" class="form-select">
+                @foreach (var course in DbStaticData.Courses)
+                {
+                    <option value="@course">@course</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="col-sm-auto">
+        <div class="input-group">
+            <label class="input-group-text" for="SelectedNumberOfCourses">Number of courses:</label>
+            <select @bind="SelectedNumberOfCourses" class="form-select" id="SelectedNumberOfCourses">
+                @foreach (var number in DbStaticData.NumberOfCourses)
+                {
+                    <option value="@number">@number</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="col-sm-auto">
+        <button class="btn btn-outline-secondary" type="button" @onclick="GetStudents">Search</button>
+    </div>
+</div>
+
+<div class="d-flex justify-content-end">
+    <button class="btn btn-outline-success mb-1 pull-right" type="button"
+            @onclick="@(() => NavManager.NavigateTo("/RegisterStudent"))">Register Student</button>
+</div>
+
+<div class="row">
+    <QuickGrid @ref="StudentsGrid" Items="@Students" Class="table table-striped">
+        <PropertyColumn Property="@(p => p.Name)" Align="Align.Start"  />
+        <PropertyColumn Property="@(p => p.Email)" />
+        <TemplateColumn Title="First Course">
+            <div class="d-flex flex-column">
+                @if (string.IsNullOrEmpty(context.Course1))
+                {
+                    <div>
+                        <button class="btn btn-outline-secondary my-1" @onclick="@(() => EnrollCourse(context.Id))">
+                            Enroll</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="my-1">@context.Course1</div>
+                    <div class="my-1">Grade: @context.Course1Grade</div>
+                    <div class="my-1">Credits: @context.Course1Credits</div>
+                    <div>
+                        <button class="btn btn-outline-secondary btn-sm my-1" @onclick="@(() => TransferCourse(context.Id, 0))">
+                            Transfer</button>
+                        <button class="btn btn-outline-secondary btn-sm my-1" @onclick="@(() => DisenrollCourse(context.Id, 0))">
+                            Disenroll</button>
+                    </div>
+                }
+            </div>
+        </TemplateColumn>
+        <TemplateColumn Title="Second Course">
+            <div class="d-flex flex-column">
+                @if (string.IsNullOrEmpty(context.Course2))
+                {
+                    <div>
+                        <button class="btn btn-outline-secondary my-1" @onclick="@(() => EnrollCourse(context.Id))">
+                            Enroll</button>
+                    </div>
+                } else
+                {
+                    <div class="my-1">@context.Course2</div>
+                    <div class="my-1">Grade: @context.Course2Grade</div>
+                    <div class="my-1">Credits: @context.Course2Credits</div>
+                    <div>
+                        <button class="btn btn-outline-secondary btn-sm my-1" @onclick="@(() => TransferCourse(context.Id, 1))">
+                            Transfer</button>
+                        <button class="btn btn-outline-secondary btn-sm my-1" @onclick="@(() => DisenrollCourse(context.Id, 1))">
+                            Disenroll</button>
+                    </div>
+                }
+            </div>
+        </TemplateColumn>
+        <TemplateColumn>
+            <button class="btn btn-outline-primary my-1"
+                    onclick="@(() => EditStudentPII(context.Id, context.Name, context.Email))">
+                Edit Personal Info
+            </button>
+            <button class="btn btn-outline-danger my-1" @onclick="@(() => DeleteStudent(context.Id))">Unregister Student</button>
+        </TemplateColumn>
+    </QuickGrid>
+</div>
+
+@code {
+    private EditPersonalInfoModal _editPersonalInfoModal = null!;
+    private EnrollModal _enrollModal = null!;
+    private TransferModal _transferModal = null!;
+    private DisenrollModal _disenrollModal = null!;
+
+    public string SelectedCourse { get; set; } = "";
+    public string SelectedNumberOfCourses { get; set; } = "";
+
+    public IQueryable<StudentDto> Students { get; private set; } = new List<StudentDto>().AsQueryable();
+    public QuickGrid<StudentDto> StudentsGrid { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetStudents();
+    }
+
+    public async Task ReloadStudents()
+    {
+        await GetStudents();
+        StateHasChanged();
+    }
+
+    private async Task GetStudents()
+    {
+        var requestUrl = $"api/students?enrolled={SelectedCourse}";
+        if (SelectedNumberOfCourses != "")
+            requestUrl += $"&number={SelectedNumberOfCourses}";
+
+        var response = await Http.GetAllStudents(SelectedCourse, SelectedNumberOfCourses);
+
+        Students = response.AsQueryable();
+    }
+
+    private async Task DeleteStudent(long id)
+    {
+        await Http.UnregisterStudent(id);
+        await GetStudents();
+    }
+
+    private async Task EditStudentPII(long Id, string Name, string Email)
+    {
+        var parameters = ParameterView.FromDictionary(new Dictionary<string, object?>
+        {
+            { nameof(_editPersonalInfoModal.Id), Id },
+            { nameof(_editPersonalInfoModal.Name), Name },
+            { nameof(_editPersonalInfoModal.Email), Email }
+        });
+        await _editPersonalInfoModal.SetParametersAsync(parameters);
+
+        await JS.InvokeVoidAsync("showDialog", "edit-pii-dialog");
+    }
+
+    private async Task EnrollCourse(long Id)
+    {
+        var parameters = ParameterView.FromDictionary(new Dictionary<string, object?>
+            { { nameof(_enrollModal.Id), Id } });
+        await _enrollModal.SetParametersAsync(parameters);
+
+        await JS.InvokeVoidAsync("showDialog", "enroll-dialog");
+    }
+
+    private async Task TransferCourse(long Id, int enrollmentNumber)
+    {
+        var parameters = ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                { nameof(_transferModal.Id), Id },
+                { nameof(_transferModal.EnrollmentNumber), enrollmentNumber },
+            });
+        await _transferModal.SetParametersAsync(parameters);
+
+        await JS.InvokeVoidAsync("showDialog", "transfer-dialog");
+    }
+
+    private async Task DisenrollCourse(long Id, int enrollmentNumber)
+    {
+        var parameters = ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                { nameof(_disenrollModal.Id), Id },
+                { nameof(_disenrollModal.EnrollmentNumber), enrollmentNumber },
+            });
+        await _disenrollModal.SetParametersAsync(parameters);
+
+        await JS.InvokeVoidAsync("showDialog", "disenroll-dialog");
+    }
+}
